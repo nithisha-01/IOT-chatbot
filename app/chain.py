@@ -16,11 +16,11 @@ from pathlib import Path
 from langchain_openai import ChatOpenAI
 from langchain.memory import ConversationBufferWindowMemory
 
-from db_executor import DBExecutor, QueryNotAllowedError
-from schema_loader import TableIndex, build_schema_context
-from language_handler import detect_language
-from result_formatter import summarize_dataframe
-from chart_generator import parse_chart_spec, build_chart_payload
+from app.db_executor import DBExecutor, QueryNotAllowedError
+from app.schema_loader import TableIndex, build_schema_context
+from app.language_handler import detect_language
+from app.result_formatter import summarize_dataframe
+from app.chart_generator import parse_chart_spec, build_chart_payload
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROMPTS_DIR = BASE_DIR / "prompts"
@@ -71,7 +71,7 @@ class ChatWithDataChain:
         self.refresh_schema()
 
     def refresh_schema(self):
-        from schema_loader import discover_schema
+        from app.schema_loader import discover_schema
         chunks = discover_schema(self.db.engine)
         self.index.build(chunks)
         return len(chunks)
