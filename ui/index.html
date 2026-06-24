@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat With Data — Smart Building</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+:root{
+  --bg:#0b0f0e; --panel:#111614; --panel-2:#161d1a; --border:#23302b;
+  --text:#e8efe9; --muted:#8aa39a; --accent:#6ee7b7; --accent-2:#34d399;
+  --warn:#f0b86e; --user-bubble:#1a2a23; --bot-bubble:#141b18;
+  --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+  --sans:'Inter',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  background:radial-gradient(circle at 20% 0%, #0e1614 0%, var(--bg) 55%);
+  color:var(--text); font-family:var(--sans); height:100vh; overflow:hidden;
+}
+@font-face{font-family:'Inter';src:local('Inter');}
+.app{display:flex; flex-direction:column; height:100vh;}
+
+/* TOP BAR */
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 20px; border-bottom:1px solid var(--border); background:var(--panel);
+  position:sticky; top:0; z-index:10;
+}
+.brand{display:flex; align-items:center; gap:10px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);}
+.brand h1{font-size:15px; font-weight:600; letter-spacing:.02em;}
+.brand small{color:var(--muted); font-size:11px; display:block; margin-top:1px;}
+.top-right{display:flex; align-items:center; gap:14px;}
+.badge{
+  display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+  border:1px solid var(--border); padding:5px 10px; border-radius:20px; background:var(--panel-2);
+}
+.badge .pip{width:7px;height:7px;border-radius:50%;background:#555;}
+.badge.ok .pip{background:var(--accent-2); box-shadow:0 0 6px var(--accent-2);}
+.badge.bad .pip{background:#e06464;}
+.lang-toggle{display:flex; border:1px solid var(--border); border-radius:20px; overflow:hidden; font-size:12px;}
+.lang-toggle button{
+  background:none; border:none; color:var(--muted); padding:6px 14px; cursor:pointer; font-family:var(--sans); font-weight:600;
+}
+.lang-toggle button.active{background:var(--accent); color:#06241a;}
+
+/* MAIN LAYOUT */
+.main{display:flex; flex:1; min-height:0;}
+.chat-col{width:46%; display:flex; flex-direction:column; border-right:1px solid var(--border); min-width:380px;}
+.viz-col{flex:1; display:flex; flex-direction:column; min-width:0;}
+
+/* CHAT */
+.thread{flex:1; overflow-y:auto; padding:18px 20px; display:flex; flex-direction:column; gap:16px;}
+.thread::-webkit-scrollbar{width:8px;} .thread::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px;}
+.msg{max-width:92%; display:flex; flex-direction:column; gap:6px;}
+.msg.user{align-self:flex-end; align-items:flex-end;}
+.msg.bot{align-self:flex-start; align-items:flex-start;}
+.bubble{padding:11px 14px; border-radius:12px; font-size:13.5px; line-height:1.5;}
+.msg.user .bubble{background:var(--user-bubble); border:1px solid #23413490;}
+.msg.bot .bubble{background:var(--bot-bubble); border:1px solid var(--border);}
+.msg.bot[dir="rtl"] .bubble{text-align:right; font-family:'Tahoma',var(--sans);}
+.meta{font-size:10.5px; color:var(--muted); padding:0 4px;}
+
+.sql-toggle{font-size:11px; color:var(--accent-2); cursor:pointer; padding:0 4px; user-select:none;}
+.sql-box{display:none; margin-top:6px; max-width:100%;}
+.sql-box.open{display:block;}
+.sql-box pre{border-radius:8px; font-size:11.5px; padding:10px !important; max-width:100%; overflow-x:auto;}
+
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;}
+.chip{
+  font-size:11.5px; padding:6px 12px; border-radius:14px; border:1px solid var(--border);
+  background:var(--panel-2); color:var(--text); cursor:pointer; transition:.15s;
+}
+.chip:hover{border-color:var(--accent-2); color:var(--accent-2);}
+
+.loader-line{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); padding:4px;}
+.loader-line .spin{width:10px;height:10px;border-radius:50%;border:2px solid var(--border); border-top-color:var(--accent); animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.composer{padding:14px 18px; border-top:1px solid var(--border); background:var(--panel); display:flex; gap:10px;}
+.composer input{
+  flex:1; background:var(--panel-2); border:1px solid var(--border); border-radius:10px;
+  color:var(--text); padding:11px 14px; font-size:13.5px; font-family:var(--sans);
+}
+.composer input:focus{outline:none; border-color:var(--accent-2);}
+.composer button{
+  background:var(--accent); color:#06241a; border:none; border-radius:10px; padding:0 18px;
+  font-weight:700; cursor:pointer; font-size:13px;
+}
+.composer button:hover{background:var(--accent-2);}
+
+/* VIZ COLUMN */
+.viz-header{padding:14px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;}
+.viz-header h2{font-size:13px; color:var(--muted); font-weight:600; letter-spacing:.03em; text-transform:uppercase;}
+.export-btns{display:flex; gap:8px;}
+.export-btns button{
+  background:var(--panel-2); border:1px solid var(--border); color:var(--muted); font-size:11.5px;
+  padding:6px 12px; border-radius:8px; cursor:pointer;
+}
+.export-btns button:hover{color:var(--accent-2); border-color:var(--accent-2);}
+#chart{flex:0 0 56%; padding:14px; min-height:0;}
+.table-wrap{flex:1; border-top:1px solid var(--border); overflow:auto; padding:0 18px;}
+.table-wrap h3{font-size:11.5px; color:var(--muted); padding:12px 0 8px; cursor:pointer; display:flex; align-items:center; gap:6px;}
+table{width:100%; border-collapse:collapse; font-size:12px;}
+th{position:sticky; top:0; background:var(--panel); text-align:left; padding:8px 10px; color:var(--accent-2); border-bottom:1px solid var(--border); cursor:pointer; white-space:nowrap;}
+td{padding:7px 10px; border-bottom:1px solid #1b241f; color:var(--text); white-space:nowrap;}
+tr:hover td{background:#141c18;}
+.empty-state{flex:1; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:13px; flex-direction:column; gap:8px;}
+.empty-state .glyph{font-size:34px; opacity:.5;}
+
+[dir="rtl"]{direction:rtl;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1>Chat With Data</h1>
+        <small>Smart Building IoT — Bilingual SQL Assistant</small>
+      </div>
+    </div>
+    <div class="top-right">
+      <div class="badge" id="dbBadge"><span class="pip"></span><span id="dbBadgeText">Connecting…</span></div>
+      <div class="lang-toggle">
+        <button id="langAuto" class="active" onclick="setLang(null)">Auto</button>
+        <button id="langEn" onclick="setLang('en')">EN</button>
+        <button id="langAr" onclick="setLang('ar')">AR</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="chat-col">
+      <div class="thread" id="thread">
+        <div class="msg bot">
+          <div class="bubble">Ask me anything about your sensor data — temperature, humidity, CO₂, light, or occupancy across rooms. Try: <em>"What is the average CO2 level per room?"</em></div>
+        </div>
+      </div>
+      <div class="composer">
+        <input id="questionInput" type="text" placeholder="Ask about your data… (English or Arabic)" onkeydown="if(event.key==='Enter')sendQuery();">
+        <button onclick="sendQuery()">Send</button>
+      </div>
+    </div>
+
+    <div class="viz-col">
+      <div class="viz-header">
+        <h2 id="vizTitle">Chart</h2>
+        <div class="export-btns">
+          <button onclick="exportPNG()">⬇ PNG</button>
+          <button onclick="exportCSV()">⬇ CSV</button>
+        </div>
+      </div>
+      <div id="chart"></div>
+      <div class="table-wrap">
+        <h3 onclick="toggleTable()">▾ Raw data</h3>
+        <table id="dataTable"><thead><tr></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let currentLang = null; // null = auto
+let lastCSV = "";
+
+function setLang(l){
+  currentLang = l;
+  document.getElementById('langAuto').classList.toggle('active', l===null);
+  document.getElementById('langEn').classList.toggle('active', l==='en');
+  document.getElementById('langAr').classList.toggle('active', l==='ar');
+}
+
+async function checkHealth(){
+  const badge = document.getElementById('dbBadge');
+  const text = document.getElementById('dbBadgeText');
+  try{
+    const res = await fetch(API_BASE + '/health');
+    const data = await res.json();
+    if(data.db && data.db.connected){
+      badge.className = 'badge ok';
+      text.textContent = `Connected · ${data.indexed_tables} tables indexed`;
+    } else {
+      badge.className = 'badge bad';
+      text.textContent = 'DB not connected';
+    }
+  }catch(e){
+    badge.className = 'badge bad';
+    text.textContent = 'Backend unreachable';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 15000);
+
+function addUserMessage(text){
+  const thread = document.getElementById('thread');
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = `<div class="bubble"></div>`;
+  div.querySelector('.bubble').textContent = text;
+  thread.appendChild(div);
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function addLoader(){
+  const thread = document.getElementById('thread');
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+  div.id = 'loaderMsg';
+  const steps = ['Detecting language…','Finding relevant tables…','Generating SQL…','Querying database…','Building chart…'];
+  div.innerHTML = `<div class="loader-line"><span class="spin"></span><span id="loaderText">${steps[0]}</span></div>`;
+  thread.appendChild(div);
+  thread.scrollTop = thread.scrollHeight;
+  let i = 0;
+  const interval = setInterval(()=>{
+    i = (i+1) % steps.length;
+    const el = document.getElementById('loaderText');
+    if(el) el.textContent = steps[i];
+    else clearInterval(interval);
+  }, 650);
+  return interval;
+}
+
+function removeLoader(){
+  const el = document.getElementById('loaderMsg');
+  if(el) el.remove();
+}
+
+function addBotMessage(result, originalLang){
+  const thread = document.getElementById('thread');
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+  if(result.language === 'ar') div.setAttribute('dir','rtl');
+
+  const sqlId = 'sql_' + Date.now();
+  div.innerHTML = `
+    <div class="bubble">${escapeHtml(result.answer)}</div>
+    <div class="sql-toggle" onclick="toggleSql('${sqlId}')">▸ Show SQL</div>
+    <div class="sql-box" id="${sqlId}"><pre><code class="language-sql">${escapeHtml(result.sql)}</code></pre></div>
+    <div class="chips" id="chips_${sqlId}"></div>
+    <div class="meta">${result.row_count} rows ${result.from_cache ? '· cached' : ''}</div>
+  `;
+  thread.appendChild(div);
+
+  const chipsContainer = div.querySelector(`#chips_${sqlId}`);
+  (result.suggestions || []).forEach(s=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = s;
+    chip.onclick = ()=>{ document.getElementById('questionInput').value = s; sendQuery(); };
+    chipsContainer.appendChild(chip);
+  });
+
+  thread.scrollTop = thread.scrollHeight;
+  hljs.highlightElement(div.querySelector('code'));
+
+  renderChart(result.chart);
+  renderTable(result.chart);
+  lastCSV = result.preview_csv || "";
+}
+
+function toggleSql(id){
+  const box = document.getElementById(id);
+  box.classList.toggle('open');
+  const toggle = box.previousElementSibling;
+  toggle.textContent = box.classList.contains('open') ? '▾ Hide SQL' : '▸ Show SQL';
+}
+
+function toggleTable(){
+  const wrap = document.querySelector('.table-wrap table');
+  wrap.style.display = wrap.style.display === 'none' ? 'table' : 'none';
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function renderChart(chart){
+  const el = document.getElementById('chart');
+  document.getElementById('vizTitle').textContent = chart.title || 'Chart';
+  if(!chart || !chart.x || chart.x.length === 0){
+    el.innerHTML = `<div class="empty-state"><div class="glyph">◌</div><div>No chart for this query yet — ask something about your data.</div></div>`;
+    return;
+  }
+  let traces = [];
+  const layout = {
+    paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+    font:{color:'#e8efe9', family:'Inter, sans-serif', size:11},
+    margin:{t:30,l:50,r:20,b:60},
+    xaxis:{gridcolor:'#23302b'}, yaxis:{gridcolor:'#23302b'},
+    title:{text: chart.title || '', font:{size:13}}
+  };
+  if(chart.type === 'bar'){
+    traces = [{x:chart.x, y:chart.y, type:'bar', marker:{color:'#6ee7b7'}}];
+  } else if(chart.type === 'line'){
+    traces = [{x:chart.x, y:chart.y, type:'scatter', mode:'lines+markers', line:{color:'#6ee7b7'}}];
+  } else if(chart.type === 'pie'){
+    traces = [{labels:chart.x, values:chart.y, type:'pie', marker:{colors:['#6ee7b7','#34d399','#f0b86e','#e06464','#8aa39a','#4f8a78']}}];
+  } else if(chart.type === 'scatter'){
+    traces = [{x:chart.x, y:chart.y, type:'scatter', mode:'markers', marker:{color:'#6ee7b7'}}];
+  } else if(chart.type === 'heatmap'){
+    traces = [{x:chart.x, y:chart.y, type:'histogram2d', colorscale:'Viridis'}];
+  } else {
+    el.innerHTML = `<div class="empty-state"><div class="glyph">▤</div><div>Result shown as a table below.</div></div>`;
+    return;
+  }
+  Plotly.newPlot(el, traces, layout, {responsive:true, displayModeBar:false});
+}
+
+function renderTable(chart){
+  const table = document.getElementById('dataTable');
+  const thead = table.querySelector('thead tr');
+  const tbody = table.querySelector('tbody');
+  thead.innerHTML = ''; tbody.innerHTML = '';
+  if(!chart || !chart.data || chart.data.length === 0) return;
+
+  const cols = Object.keys(chart.data[0]);
+  cols.forEach(c=>{
+    const th = document.createElement('th');
+    th.textContent = c;
+    th.onclick = ()=>sortTableBy(c);
+    thead.appendChild(th);
+  });
+  chart.data.forEach(row=>{
+    const tr = document.createElement('tr');
+    tr.onclick = ()=>{
+      const firstCol = cols[0];
+      document.getElementById('questionInput').value = `Show me more detail about ${row[firstCol]}`;
+      sendQuery();
+    };
+    cols.forEach(c=>{
+      const td = document.createElement('td');
+      td.textContent = row[c];
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+let sortAsc = {};
+function sortTableBy(col){
+  sortAsc[col] = !sortAsc[col];
+  const tbody = document.querySelector('#dataTable tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const idx = Array.from(document.querySelectorAll('#dataTable th')).findIndex(th=>th.textContent===col);
+  rows.sort((a,b)=>{
+    const av = a.children[idx].textContent, bv = b.children[idx].textContent;
+    const an = parseFloat(av), bn = parseFloat(bv);
+    let cmp;
+    if(!isNaN(an) && !isNaN(bn)) cmp = an - bn;
+    else cmp = av.localeCompare(bv);
+    return sortAsc[col] ? cmp : -cmp;
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+}
+
+function exportCSV(){
+  if(!lastCSV){ alert('No data to export yet.'); return; }
+  const blob = new Blob([lastCSV], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'query_result.csv';
+  a.click();
+}
+
+function exportPNG(){
+  Plotly.downloadImage(document.getElementById('chart'), {format:'png', filename:'chart'});
+}
+
+async function sendQuery(){
+  const input = document.getElementById('questionInput');
+  const question = input.value.trim();
+  if(!question) return;
+  addUserMessage(question);
+  input.value = '';
+  const loaderInterval = addLoader();
+
+  try{
+    const res = await fetch(API_BASE + '/query', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({question, language: currentLang})
+    });
+    clearInterval(loaderInterval);
+    removeLoader();
+    if(!res.ok){
+      const err = await res.json();
+      addBotMessage({answer:'Error: ' + (err.detail || 'something went wrong.'), sql:'', language:'en', chart:{x:[],y:[],type:'table',data:[]}, suggestions:[], row_count:0}, currentLang);
+      return;
+    }
+    const data = await res.json();
+    addBotMessage(data, currentLang);
+  } catch(e){
+    clearInterval(loaderInterval);
+    removeLoader();
+    addBotMessage({answer:'Could not reach the backend: ' + e.message, sql:'', language:'en', chart:{x:[],y:[],type:'table',data:[]}, suggestions:[], row_count:0}, currentLang);
+  }
+}
+</script>
+</body>
+</html>
