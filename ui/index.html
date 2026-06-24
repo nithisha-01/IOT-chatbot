@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat With Data — Smart Building</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1117;--surface:#161b27;--surface2:#1e2536;--surface3:#252d3d;
+  --border:#2a3347;--border2:#344060;--text:#e2e8f0;--muted:#64748b;--muted2:#94a3b8;
+  --accent:#6366f1;--accent-soft:#818cf8;--accent-glow:rgba(99,102,241,0.15);
+  --green:#10b981;--red:#ef4444;--user-bg:#1e2a4a;--user-border:rgba(99,102,241,0.25);
+  --sans:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;overflow:hidden;}
+.app{display:flex;flex-direction:column;height:100vh;}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-icon{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;}
+.brand-icon svg{width:16px;height:16px;}
+.brand-name{font-size:14px;font-weight:600;letter-spacing:-0.01em;}
+.brand-sub{font-size:11px;color:var(--muted2);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.status-badge{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted2);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;}
+.status-badge .pip{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+.status-badge.ok .pip{background:var(--green);}
+.status-badge.bad .pip{background:var(--red);}
+.lang-toggle{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:20px;overflow:hidden;}
+.lang-toggle button{background:none;border:none;color:var(--muted2);padding:4px 12px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .15s;}
+.lang-toggle button.active{background:var(--accent);color:#fff;border-radius:20px;}
+.lang-toggle button:hover:not(.active){color:var(--text);}
+
+/* LAYOUT */
+.main{display:flex;flex:1;min-height:0;}
+.chat-col{width:42%;min-width:340px;display:flex;flex-direction:column;border-right:1px solid var(--border);}
+.viz-col{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg);overflow:hidden;}
+
+/* CHAT THREAD */
+.thread{flex:1;overflow-y:auto;padding:20px 16px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;}
+.thread::-webkit-scrollbar{width:4px;}
+.thread::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+.msg{display:flex;flex-direction:column;max-width:88%;gap:4px;}
+.msg.user{align-self:flex-end;align-items:flex-end;}
+.msg.bot{align-self:flex-start;align-items:flex-start;}
+.bubble{padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.55;}
+.msg.user .bubble{background:var(--user-bg);border:1px solid var(--user-border);border-bottom-right-radius:4px;color:#c7d2fe;}
+.msg.bot .bubble{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px;color:var(--text);}
+.msg.bot[dir="rtl"] .bubble{text-align:right;}
+.meta{font-size:10.5px;color:var(--muted);padding:0 2px;}
+.sql-toggle{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--accent-soft);cursor:pointer;padding:3px 8px;border-radius:6px;border:1px solid rgba(99,102,241,0.2);background:rgba(99,102,241,0.07);transition:all .15s;margin-top:2px;user-select:none;}
+.sql-toggle:hover{background:rgba(99,102,241,0.14);border-color:rgba(99,102,241,0.35);}
+.sql-box{display:none;max-width:100%;margin-top:6px;}
+.sql-box.open{display:block;}
+.sql-box pre{border-radius:10px!important;font-size:11.5px!important;padding:12px!important;max-width:100%;overflow-x:auto;border:1px solid var(--border);font-family:var(--mono)!important;}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+.chip{font-size:11.5px;padding:4px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--surface2);color:var(--muted2);cursor:pointer;transition:all .15s;}
+.chip:hover{border-color:var(--accent);color:var(--accent-soft);background:var(--accent-glow);}
+
+/* LOADER */
+.loader-dots{display:flex;align-items:center;gap:5px;padding:10px 14px;flex-wrap:nowrap;}
+.loader-dots span{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce 1.2s infinite;opacity:.6;flex-shrink:0;}
+.loader-dots span:nth-child(2){animation-delay:.2s;}
+.loader-dots span:nth-child(3){animation-delay:.4s;}
+.loader-text{font-size:12px;color:var(--muted2);margin-left:6px;white-space:nowrap;}
+@keyframes bounce{0%,80%,100%{transform:scale(.7);opacity:.4}40%{transform:scale(1.1);opacity:1}}
+
+/* COMPOSER */
+.composer{padding:12px 14px;border-top:1px solid var(--border);background:var(--surface);display:flex;gap:8px;align-items:center;}
+.composer-input-wrap{flex:1;display:flex;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:0 14px;transition:border-color .2s;}
+.composer-input-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);}
+.composer input{flex:1;background:none;border:none;outline:none;color:var(--text);padding:10px 0;font-size:13.5px;font-family:var(--sans);}
+.composer input::placeholder{color:var(--muted);}
+.send-btn{width:38px;height:38px;background:var(--accent);border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.send-btn:hover{background:var(--accent-soft);transform:scale(1.04);}
+.send-btn:active{transform:scale(.97);}
+.send-btn svg{width:15px;height:15px;}
+
+/* VIZ HEADER */
+.viz-header{padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
+.viz-title-group{display:flex;align-items:center;gap:8px;}
+.viz-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);}
+.viz-title{font-size:13px;font-weight:500;color:var(--text);}
+.export-btns{display:flex;gap:6px;}
+.export-btn{display:flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);color:var(--muted2);font-size:11.5px;padding:5px 10px;border-radius:8px;cursor:pointer;transition:all .15s;font-family:var(--sans);}
+.export-btn:hover{color:var(--text);border-color:var(--border2);background:var(--surface3);}
+
+
+/* CHART TYPE PILLS */
+.chart-type-bar{display:flex;gap:6px;padding:8px 14px 6px;flex-shrink:0;}
+.ctype-pill{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--muted2);cursor:pointer;transition:all .15s;user-select:none;}
+.ctype-pill.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.ctype-pill:hover:not(.active){border-color:var(--border2);color:var(--text);}
+
+/* CHART AREA — key fix: never show "empty state" when data exists */
+.chart-area{
+  flex:0 0 auto;
+  padding:6px 14px 10px;
+  min-height:260px;
+  transition:height .25s ease;
+  position:relative;
+}
+.chart-area #chartDiv{
+  width:100%;
+  min-height:240px;
+}
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;color:var(--muted);font-size:13px;padding:32px;text-align:center;
+  min-height:220px;
+  /* Only shown when explicitly set visible */
+}
+.empty-icon{width:48px;height:48px;border-radius:14px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin-bottom:4px;}
+
+/* TABLE */
+.table-section{flex:1;border-top:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column;min-height:0;}
+.table-header{padding:8px 16px;display:flex;align-items:center;gap:6px;cursor:pointer;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;user-select:none;}
+.table-header-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);}
+.table-header-count{font-size:10.5px;color:var(--muted);background:var(--surface3);padding:1px 6px;border-radius:10px;}
+.table-header-chevron{margin-left:auto;color:var(--muted);transition:transform .2s;}
+.table-header-chevron.open{transform:rotate(180deg);}
+.table-wrap{overflow:auto;flex:1;}
+.table-wrap::-webkit-scrollbar{width:4px;height:4px;}
+.table-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{position:sticky;top:0;background:var(--surface2);text-align:left;padding:7px 14px;color:var(--accent-soft);border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;font-weight:500;font-size:11px;letter-spacing:.02em;}
+th:hover{color:var(--text);}
+td{padding:6px 14px;border-bottom:1px solid var(--border);color:var(--muted2);white-space:nowrap;font-family:var(--mono);font-size:11.5px;}
+tbody tr:hover td{background:var(--surface);color:var(--text);cursor:pointer;}
+tbody tr:last-child td{border-bottom:none;}
+[dir="rtl"]{direction:rtl;}
+
+/* Smooth plotly container transitions */
+.js-plotly-plot .plotly{transition:opacity .2s;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 16 16" fill="none">
+          <rect x="1" y="8" width="3" height="7" rx="1" fill="white" fill-opacity=".9"/>
+          <rect x="6" y="5" width="3" height="10" rx="1" fill="white"/>
+          <rect x="11" y="2" width="3" height="13" rx="1" fill="white" fill-opacity=".7"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">Chat With Data</div>
+        <div class="brand-sub">Smart Building IoT · Bilingual SQL</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="status-badge" id="dbBadge"><span class="pip"></span><span id="dbBadgeText">Connecting…</span></div>
+      <div class="lang-toggle">
+        <button id="langAuto" class="active" onclick="setLang(null)">Auto</button>
+        <button id="langEn" onclick="setLang('en')">EN</button>
+        <button id="langAr" onclick="setLang('ar')">AR</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- CHAT COLUMN -->
+    <div class="chat-col">
+      <div class="thread" id="thread">
+        <div class="msg bot">
+          <div class="bubble">
+            Ask me anything about your sensor data — temperature, humidity, CO₂, light, or occupancy across rooms.<br><br>
+            Try: <em>"Average CO₂ level per room?"</em> or <em>"CO₂ levels over time in room_402"</em>
+          </div>
+        </div>
+      </div>
+      <div class="composer">
+        <div class="composer-input-wrap">
+          <input id="questionInput" type="text" placeholder="Ask in English or Arabic…"
+            onkeydown="if(event.key==='Enter')sendQuery();">
+        </div>
+        <button class="send-btn" onclick="sendQuery()" aria-label="Send">
+          <svg viewBox="0 0 15 15" fill="none">
+            <path d="M1 7.5h13M7.5 1l6.5 6.5-6.5 6.5" stroke="white" stroke-width="1.6"
+              stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- VIZ COLUMN -->
+    <div class="viz-col">
+      <div class="viz-header">
+        <div class="viz-title-group">
+          <span class="viz-label">Visualization</span>
+          <span class="viz-title" id="vizTitle"></span>
+        </div>
+        <div class="export-btns">
+          <button class="export-btn" onclick="exportPNG()">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M1 9.5v1a.5.5 0 00.5.5h9a.5.5 0 00.5-.5v-1"
+                stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>PNG
+          </button>
+          <button class="export-btn" onclick="exportCSV()">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M1 9.5v1a.5.5 0 00.5.5h9a.5.5 0 00.5-.5v-1"
+                stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- CHART TYPE PILLS — now includes Heatmap & Pie -->
+      <div class="chart-type-bar">
+        <span class="ctype-pill active" data-type="bar"    onclick="switchChartType('bar',this)">Bar</span>
+        <span class="ctype-pill"        data-type="line"   onclick="switchChartType('line',this)">Line</span>
+        <span class="ctype-pill"        data-type="pie"    onclick="switchChartType('pie',this)">Pie</span>
+        <span class="ctype-pill"        data-type="donut"  onclick="switchChartType('donut',this)">Donut</span>
+        <span class="ctype-pill"        data-type="scatter" onclick="switchChartType('scatter',this)">Scatter</span>
+        <span class="ctype-pill"        data-type="heatmap" onclick="switchChartType('heatmap',this)">Heatmap</span>
+      </div>
+
+      <!-- CHART AREA: single div, no empty-state overlap issue -->
+      <div class="chart-area" id="chartArea">
+        <div id="chartDiv"></div>
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">
+            <svg viewBox="0 0 22 22" fill="none">
+              <rect x="2" y="10" width="4" height="10" rx="1.5" stroke="#64748b" stroke-width="1.5"/>
+              <rect x="9" y="6" width="4" height="14" rx="1.5" stroke="#64748b" stroke-width="1.5"/>
+              <rect x="16" y="2" width="4" height="18" rx="1.5" stroke="#64748b" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div>Ask a question to see your data visualized</div>
+          <div style="font-size:12px;color:#475569">Charts appear here as you explore your building sensors</div>
+        </div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="table-section">
+        <div class="table-header" onclick="toggleTable()">
+          <span class="table-header-label">Raw data</span>
+          <span class="table-header-count" id="rowCountBadge">0 rows</span>
+          <svg class="table-header-chevron" id="tableChevron" viewBox="0 0 10 6" fill="none" width="10" height="6">
+            <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="table-wrap" id="tableWrap">
+          <table id="dataTable"><thead><tr></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   STATE
+========================================================= */
+const API_BASE = window.location.origin;
+let currentLang    = null;
+let lastCSV        = '';
+let tableOpen      = true;
+let lastChartData  = null;
+let currentChartType = 'bar';
+
+const PALETTE = [
+  '#6366f1','#f97316','#06b6d4','#a855f7',
+  '#eab308','#10b981','#e11d48','#3b82f6',
+  '#84cc16','#f43f5e','#8b5cf6','#14b8a6'
+];
+
+/* =========================================================
+   LANGUAGE TOGGLE
+========================================================= */
+function setLang(l) {
+  currentLang = l;
+  document.getElementById('langAuto').classList.toggle('active', l === null);
+  document.getElementById('langEn').classList.toggle('active', l === 'en');
+  document.getElementById('langAr').classList.toggle('active', l === 'ar');
+}
+
+/* =========================================================
+   HEALTH CHECK
+========================================================= */
+async function checkHealth() {
+  const badge = document.getElementById('dbBadge');
+  const text  = document.getElementById('dbBadgeText');
+  try {
+    const res  = await fetch(API_BASE + '/health');
+    const data = await res.json();
+    if (data.db && data.db.connected) {
+      badge.className = 'status-badge ok';
+      text.textContent = 'Connected · ' + data.indexed_tables + ' tables';
+    } else {
+      badge.className = 'status-badge bad';
+      text.textContent = 'DB not connected';
+    }
+  } catch (e) {
+    badge.className = 'status-badge bad';
+    text.textContent = 'Backend unreachable';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 15000);
+
+/* =========================================================
+   CHAT HELPERS
+========================================================= */
+function addUserMessage(text) {
+  const thread = document.getElementById('thread');
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = '<div class="bubble"></div>';
+  div.querySelector('.bubble').textContent = text;
+  thread.appendChild(div);
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function addLoader() {
+  const thread = document.getElementById('thread');
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+  div.id = 'loaderMsg';
+  const steps = [
+    'Detecting language…',
+    'Finding tables…',
+    'Generating SQL…',
+    'Querying database…',
+    'Building chart…'
+  ];
+  div.innerHTML = '<div class="loader-dots"><span></span><span></span><span></span>'
+    + '<span class="loader-text" id="loaderText">' + steps[0] + '</span></div>';
+  thread.appendChild(div);
+  thread.scrollTop = thread.scrollHeight;
+  let i = 0;
+  const interval = setInterval(() => {
+    i = (i + 1) % steps.length;
+    const el = document.getElementById('loaderText');
+    if (el) el.textContent = steps[i]; else clearInterval(interval);
+  }, 700);
+  return interval;
+}
+
+function removeLoader() {
+  const el = document.getElementById('loaderMsg');
+  if (el) el.remove();
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+/* Minimal markdown → HTML: bold, italic, inline code, newlines */
+function renderMarkdown(str) {
+  if (!str) return '';
+  let s = escapeHtml(str);
+  // Bold: **text** or __text__
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  // Italic: *text* or _text_
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  s = s.replace(/_(.+?)_/g, '<em>$1</em>');
+  // Inline code: `code`
+  s = s.replace(/`([^`]+)`/g, '<code style="background:var(--surface3);padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:12px;">$1</code>');
+  // Newlines → <br>
+  s = s.replace(/\n/g, '<br>');
+  return s;
+}
+
+
+/* =========================================================
+   BOT MESSAGE
+========================================================= */
+function addBotMessage(result) {
+  const thread = document.getElementById('thread');
+  const div    = document.createElement('div');
+  div.className = 'msg bot';
+  if (result.language === 'ar') div.setAttribute('dir', 'rtl');
+
+  const sqlId = 'sql_' + Date.now();
+  div.innerHTML =
+    '<div class="bubble">' + renderMarkdown(result.answer) + '</div>' +
+    '<div class="sql-toggle" onclick="toggleSql(\'' + sqlId + '\')">' +
+      '<svg width="10" height="10" viewBox="0 0 10 10" fill="none">' +
+        '<path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg> Show SQL' +
+    '</div>' +
+    '<div class="sql-box" id="' + sqlId + '">' +
+      '<pre><code class="language-sql">' + escapeHtml(result.sql) + '</code></pre>' +
+    '</div>' +
+    '<div class="chips" id="chips_' + sqlId + '"></div>' +
+    '<div class="meta">' + result.row_count + ' rows' + (result.from_cache ? ' · cached' : '') + '</div>';
+
+  thread.appendChild(div);
+
+  (result.suggestions || []).forEach(s => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = s;
+    chip.onclick = () => {
+      document.getElementById('questionInput').value = s;
+      sendQuery();
+    };
+    div.querySelector('#chips_' + sqlId).appendChild(chip);
+  });
+
+  thread.scrollTop = thread.scrollHeight;
+
+  const codeEl = div.querySelector('code');
+  if (codeEl) hljs.highlightElement(codeEl);
+
+  // ---- KEY FIX: store data & render chart regardless of type ----
+  lastChartData    = result.chart;
+  lastCSV          = result.preview_csv || '';
+
+  // Detect best default chart type from data shape
+  currentChartType = pickDefaultChartType(result.chart);
+  highlightPill(currentChartType);
+
+  renderChart(result.chart, currentChartType);
+  renderTable(result.chart);
+
+  const count = result.chart && result.chart.data ? result.chart.data.length : 0;
+  document.getElementById('rowCountBadge').textContent = count + ' rows';
+}
+
+/* Pick a sensible default chart type based on data shape */
+function pickDefaultChartType(chart) {
+  if (!chart) return 'bar';
+  if (chart.type && chart.type !== 'table') return chart.type;
+  if (!chart.x || !chart.x.length) return 'bar';
+  // If x-axis looks like timestamps → line
+  const first = String(chart.x[0] || '');
+  if (/\d{4}-\d{2}-\d{2}/.test(first)) return 'line';
+  return 'bar';
+}
+
+/* =========================================================
+   SQL TOGGLE
+========================================================= */
+function toggleSql(id) {
+  const box    = document.getElementById(id);
+  const toggle = box.previousElementSibling;
+  box.classList.toggle('open');
+  const isOpen = box.classList.contains('open');
+  toggle.innerHTML =
+    '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="transform:' +
+    (isOpen ? 'rotate(180deg)' : 'none') + '">' +
+    '<path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '</svg> ' + (isOpen ? 'Hide SQL' : 'Show SQL');
+}
+
+/* =========================================================
+   TABLE TOGGLE
+========================================================= */
+function toggleTable() {
+  tableOpen = !tableOpen;
+  document.getElementById('tableWrap').style.display    = tableOpen ? 'block' : 'none';
+  document.getElementById('tableChevron').classList.toggle('open', !tableOpen);
+}
+
+/* =========================================================
+   CHART TYPE SWITCH
+========================================================= */
+function highlightPill(type) {
+  document.querySelectorAll('.ctype-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.type === type);
+  });
+}
+
+function switchChartType(type, el) {
+  currentChartType = type;
+  highlightPill(type);
+  if (lastChartData) renderChart(lastChartData, type);
+}
+
+/* =========================================================
+   RENDER CHART  ← completely rewritten, no stale empty-state bug
+========================================================= */
+function renderChart(chart, type) {
+  const chartDiv   = document.getElementById('chartDiv');
+  const emptyState = document.getElementById('emptyState');
+  document.getElementById('vizTitle').textContent = (chart && chart.title) ? chart.title : '—';
+
+  // Determine if we actually have plottable data
+  const hasX  = chart && chart.x  && Array.isArray(chart.x)  && chart.x.length  > 0;
+  const hasY  = chart && chart.y  && Array.isArray(chart.y)  && chart.y.length  > 0;
+  const hasData = chart && chart.data && chart.data.length > 0;
+
+  if (!hasX && !hasData) {
+    // Show empty state, hide chart div
+    chartDiv.style.display   = 'none';
+    emptyState.style.display = 'flex';
+    return;
+  }
+
+  // Hide empty state, show chart
+  emptyState.style.display = 'none';
+  chartDiv.style.display   = 'block';
+
+  const t = type || 'bar';
+
+  // ---- Build x/y arrays even from `data` rows when x/y cols missing ----
+  let xArr = hasX ? chart.x : [];
+  let yArr = hasY ? chart.y : [];
+
+  if ((!hasX || !hasY) && hasData) {
+    const cols = Object.keys(chart.data[0]);
+    if (!hasX && cols.length > 0) xArr = chart.data.map(r => r[cols[0]]);
+    if (!hasY && cols.length > 1) yArr = chart.data.map(r => parseFloat(r[cols[1]]));
+  }
+
+  const layout = {
+    paper_bgcolor : 'transparent',
+    plot_bgcolor  : 'transparent',
+    font          : { color: '#94a3b8', family: 'Inter, sans-serif', size: 11 },
+    margin        : { t: 16, l: 56, r: 16, b: 60 },
+    xaxis : { gridcolor: '#1e2536', tickcolor: '#2a3347', linecolor: '#2a3347', zeroline: false },
+    yaxis : { gridcolor: '#1e2536', tickcolor: '#2a3347', linecolor: '#2a3347', zeroline: false },
+    hoverlabel    : { bgcolor: '#1e2536', bordercolor: '#344060', font: { color: '#e2e8f0', size: 12 } },
+    showlegend    : false,
+    transition    : { duration: 300, easing: 'cubic-in-out' }
+  };
+
+  let traces = [];
+
+  if (t === 'bar') {
+    traces = [{
+      x: xArr, y: yArr, type: 'bar',
+      marker: { color: xArr.map((_, i) => PALETTE[i % PALETTE.length]), opacity: 0.9 },
+      hovertemplate: '<b>%{x}</b><br>%{y}<extra></extra>'
+    }];
+
+  } else if (t === 'line') {
+    traces = [{
+      x: xArr, y: yArr, type: 'scatter', mode: 'lines+markers',
+      line    : { color: '#6366f1', width: 2.5, shape: 'spline' },
+      marker  : { color: '#818cf8', size: 6, line: { color: '#0f1117', width: 1.5 } },
+      fill    : 'tozeroy',
+      fillcolor: 'rgba(99,102,241,0.08)',
+      hovertemplate: '<b>%{x}</b><br>%{y}<extra></extra>'
+    }];
+
+  } else if (t === 'pie') {
+    traces = [{
+      labels: xArr, values: yArr, type: 'pie',
+      marker : { colors: PALETTE, line: { color: '#0f1117', width: 2 } },
+      textfont: { color: '#e2e8f0' },
+      hovertemplate: '<b>%{label}</b><br>%{value} (%{percent})<extra></extra>'
+    }];
+    layout.showlegend = true;
+    layout.legend = { font: { color: '#94a3b8', size: 11 }, bgcolor: 'transparent', bordercolor: 'transparent' };
+    layout.margin = { t: 16, l: 16, r: 16, b: 16 };
+
+  } else if (t === 'donut') {
+    traces = [{
+      labels: xArr, values: yArr, type: 'pie', hole: 0.48,
+      marker : { colors: PALETTE, line: { color: '#0f1117', width: 2 } },
+      textfont: { color: '#e2e8f0' },
+      hovertemplate: '<b>%{label}</b><br>%{value} (%{percent})<extra></extra>'
+    }];
+    layout.showlegend = true;
+    layout.legend = { font: { color: '#94a3b8', size: 11 }, bgcolor: 'transparent', bordercolor: 'transparent' };
+    layout.margin = { t: 16, l: 16, r: 16, b: 16 };
+
+  } else if (t === 'scatter') {
+    traces = [{
+      x: xArr, y: yArr, type: 'scatter', mode: 'markers',
+      marker: {
+        color  : xArr.map((_, i) => PALETTE[i % PALETTE.length]),
+        size   : 9, opacity: 0.85,
+        line   : { color: '#0f1117', width: 1 }
+      },
+      hovertemplate: '<b>%{x}</b><br>%{y}<extra></extra>'
+    }];
+
+  } else if (t === 'heatmap') {
+    // Build heatmap from data rows if possible
+    if (hasData && chart.data.length > 0) {
+      const cols = Object.keys(chart.data[0]);
+      if (cols.length >= 3) {
+        // 3-column: col0=row-cat, col1=col-cat, col2=value
+        const rowCats = [...new Set(chart.data.map(r => r[cols[0]]))];
+        const colCats = [...new Set(chart.data.map(r => r[cols[1]]))];
+        const zMatrix = rowCats.map(rc =>
+          colCats.map(cc => {
+            const match = chart.data.find(r => r[cols[0]] === rc && r[cols[1]] === cc);
+            return match ? parseFloat(match[cols[2]]) : null;
+          })
+        );
+        traces = [{
+          z: zMatrix, x: colCats, y: rowCats, type: 'heatmap',
+          colorscale: [
+            [0,   '#0f1117'], [0.2, '#1e2a4a'], [0.4, '#312e81'],
+            [0.6, '#4f46e5'], [0.8, '#818cf8'], [1,   '#e0e7ff']
+          ],
+          hovertemplate: '<b>%{y} / %{x}</b><br>Value: %{z}<extra></extra>'
+        }];
+        layout.margin = { t: 16, l: 80, r: 16, b: 60 };
+      } else {
+        // Fallback: 2-column heatmap as density using x/y
+        traces = [{
+          x: xArr, y: yArr, type: 'histogram2d',
+          colorscale: [
+            [0, '#0f1117'], [0.5, '#4f46e5'], [1, '#e0e7ff']
+          ]
+        }];
+      }
+    } else {
+      // No data rows — fall back to bar
+      traces = [{
+        x: xArr, y: yArr, type: 'bar',
+        marker: { color: PALETTE[0] },
+        hovertemplate: '<b>%{x}</b><br>%{y}<extra></extra>'
+      }];
+    }
+  }
+
+  const h = Math.max(240, Math.min(320, 28 * (xArr.length || 8) + 80));
+  chartDiv.style.height = h + 'px';
+
+  // Use react (smooth update) if chart exists, else newPlot
+  if (chartDiv._plotly_initialized) {
+    Plotly.react(chartDiv, traces, layout, { responsive: true, displayModeBar: false });
+  } else {
+    Plotly.newPlot(chartDiv, traces, layout, { responsive: true, displayModeBar: false });
+    chartDiv._plotly_initialized = true;
+  }
+}
+
+/* =========================================================
+   RENDER TABLE
+========================================================= */
+function renderTable(chart) {
+  const table = document.getElementById('dataTable');
+  const thead = table.querySelector('thead tr');
+  const tbody = table.querySelector('tbody');
+  thead.innerHTML = '';
+  tbody.innerHTML = '';
+  if (!chart || !chart.data || !chart.data.length) return;
+
+  const cols = Object.keys(chart.data[0]);
+  cols.forEach(c => {
+    const th = document.createElement('th');
+    th.textContent = c;
+    th.onclick = () => sortTableBy(c);
+    thead.appendChild(th);
+  });
+  chart.data.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.onclick = () => {
+      document.getElementById('questionInput').value = 'Show me more detail about ' + row[cols[0]];
+      sendQuery();
+    };
+    cols.forEach(c => {
+      const td = document.createElement('td');
+      td.textContent = row[c];
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+/* =========================================================
+   TABLE SORT
+========================================================= */
+let sortAsc = {};
+function sortTableBy(col) {
+  sortAsc[col] = !sortAsc[col];
+  const tbody = document.querySelector('#dataTable tbody');
+  const rows  = Array.from(tbody.querySelectorAll('tr'));
+  const idx   = Array.from(document.querySelectorAll('#dataTable th'))
+    .findIndex(th => th.textContent === col);
+  rows.sort((a, b) => {
+    const av = a.children[idx].textContent;
+    const bv = b.children[idx].textContent;
+    const an = parseFloat(av), bn = parseFloat(bv);
+    const cmp = (!isNaN(an) && !isNaN(bn)) ? an - bn : av.localeCompare(bv);
+    return sortAsc[col] ? cmp : -cmp;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+/* =========================================================
+   EXPORT
+========================================================= */
+function exportCSV() {
+  if (!lastCSV) { alert('No data to export yet.'); return; }
+  const blob = new Blob([lastCSV], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'query_result.csv'; a.click();
+}
+
+function exportPNG() {
+  const chartDiv = document.getElementById('chartDiv');
+  if (!chartDiv._plotly_initialized) { alert('No chart to export yet.'); return; }
+  Plotly.downloadImage(chartDiv, { format: 'png', filename: 'chart' });
+}
+
+/* =========================================================
+   SEND QUERY
+========================================================= */
+async function sendQuery() {
+  const input    = document.getElementById('questionInput');
+  const question = input.value.trim();
+  if (!question) return;
+
+  addUserMessage(question);
+  input.value = '';
+
+  const loaderInterval = addLoader();
+  try {
+    const res = await fetch(API_BASE + '/query', {
+      method  : 'POST',
+      headers : { 'Content-Type': 'application/json' },
+      body    : JSON.stringify({ question, language: currentLang })
+    });
+    clearInterval(loaderInterval);
+    removeLoader();
+
+    if (!res.ok) {
+      const err = await res.json();
+      addBotMessage({
+        answer  : 'Error: ' + (err.detail || 'something went wrong.'),
+        sql     : '', language: 'en', row_count: 0,
+        chart   : { x: [], y: [], type: 'table', data: [] },
+        suggestions: []
+      });
+      return;
+    }
+    addBotMessage(await res.json());
+  } catch (e) {
+    clearInterval(loaderInterval);
+    removeLoader();
+    addBotMessage({
+      answer  : 'Could not reach the backend: ' + e.message,
+      sql     : '', language: 'en', row_count: 0,
+      chart   : { x: [], y: [], type: 'table', data: [] },
+      suggestions: []
+    });
+  }
+}
+</script>
+</body>
+</html>
