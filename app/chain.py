@@ -71,7 +71,7 @@ class ChatWithDataChain:
         self.refresh_schema()
 
     def refresh_schema(self):
-        from schema_loader import discover_schema
+        from app.schema_loader import discover_schema
         chunks = discover_schema(self.db.engine)
         self.index.build(chunks)
         return len(chunks)
