@@ -16,8 +16,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from app.db_executor import DBExecutor, QueryNotAllowedError
-from app.chain import ChatWithDataChain
+from db_executor import DBExecutor, QueryNotAllowedError
+from chain import ChatWithDataChain
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 UI_FILE = BASE_DIR / "ui" / "index.html"
