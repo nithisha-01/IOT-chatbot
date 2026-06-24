@@ -14,12 +14,12 @@ from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 from app.db_executor import DBExecutor, QueryNotAllowedError
 from app.chain import ChatWithDataChain
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 UI_FILE = BASE_DIR / "ui" / "index.html"
 
 app = FastAPI(title="Chat With Data")

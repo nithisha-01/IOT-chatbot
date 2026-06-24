@@ -138,15 +138,28 @@ class ChatWithDataChain:
         chart_spec = parse_chart_spec(chart_raw)
         chart_payload = build_chart_payload(df, chart_spec)
 
+        target_language = LANGUAGE_NAMES.get(lang, "English")
         suggest_prompt = (
-            f"The user asked: '{question}' and got an answer about it. "
+            f"The user asked in {target_language}: '{question}'. "
             f"Suggest 3 short, natural follow-up questions they might ask next about this smart-building "
-            f"sensor database. Respond ONLY as a JSON array of 3 strings, in the same language as the question."
+            f"sensor database. Respond ONLY as a JSON array of 3 strings. "
+            f"Write every suggestion in {target_language} only, using the same language as the user's question."
         )
         try:
-            suggestions = json.loads(self.suggest_llm.invoke(suggest_prompt).content.strip().strip("`"))
+            raw_suggestions = self.suggest_llm.invoke(suggest_prompt).content.strip().strip("`")
+            suggestions = json.loads(raw_suggestions)
             if not isinstance(suggestions, list):
                 suggestions = []
+            else:
+                suggestions = [str(s).strip() for s in suggestions if str(s).strip()]
+                if lang != "en":
+                    normalized = []
+                    for suggestion in suggestions:
+                        try:
+                            normalized.append(self._translate(suggestion, target_language))
+                        except Exception:
+                            normalized.append(suggestion)
+                    suggestions = normalized
         except Exception:
             suggestions = []
 
